@@ -10,6 +10,7 @@ import (
     "net"
     "strings"
     "regexp"
+    "sync"
 	"github.com/florianl/go-nfqueue/v2"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -21,6 +22,7 @@ import (
 var fgsToMatch []string
 var fgsToUnmatch []string
 var originalFgsToUnmatch []string
+var blacklistMutex sync.RWMutex
 
 //Host (default 10.60.2.1)
 var host net.IP
@@ -98,7 +100,11 @@ func processPacket(nf *nfqueue.Nfqueue) nfqueue.HookFunc {
 	    }
         
         //only match if the fg is in the blacklist and not in the whitelist
-	    if *fingerprintToMatch != "" && fp.ContainedIn(fgsToMatch) && !fp.ContainedIn(fgsToUnmatch) {
+        blacklistMutex.RLock()
+        isBlacklisted := fp.ContainedIn(fgsToMatch)
+        blacklistMutex.RUnlock()
+
+	    if isBlacklisted && !fp.ContainedIn(fgsToUnmatch) {
 			_ = nf.SetVerdict(id, nfqueue.NfDrop)
 			return 0
         }
@@ -196,6 +202,30 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		cancel()
+	}()
+
+	go func() {
+		for {
+			content, err := os.ReadFile("blacklist.txt")
+			if err == nil {
+				lines := strings.Split(string(content), "\n")
+				var newBlacklist []string
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						newBlacklist = append(newBlacklist, line)
+					}
+				}
+				if *fingerprintToMatch != "" {
+					newBlacklist = append(newBlacklist, strings.Split(*fingerprintToMatch, ",")...)
+				}
+				newBlacklist = removeDuplicates(newBlacklist)
+				blacklistMutex.Lock()
+				fgsToMatch = newBlacklist
+				blacklistMutex.Unlock()
+			}
+			time.Sleep(2 * time.Second)
+		}
 	}()
 
 	errorFunc := func(e error) int {

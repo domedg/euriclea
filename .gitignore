@@ -1,6 +1,19 @@
+# Binaries
+bin/
+euriclea-tui
+nfqueue
+extractv2
+
+# Python
+venv/
+__pycache__/
+
+# Logs and Data
 *.pcap
-find
-venv
-__pycache__
-extract
-*.txt
+debug.log
+blacklist.txt
+
+# OS generated files
+.DS_Store
+
+UTILS/
