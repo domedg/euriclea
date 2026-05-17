@@ -22,8 +22,8 @@ var (
 	bg      = lipgloss.Color("#1a1b26")
 
 	baseStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(gray).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(cyan).
 			Padding(0, 1)
 
 	headerStyle = lipgloss.NewStyle().
@@ -33,15 +33,15 @@ var (
 			Padding(0, 1)
 
 	sidebarStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, true, false, false).
-			BorderForeground(gray).
-			Padding(1, 2).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(cyan).
+			Padding(0, 1).
 			Width(22)
 
 	detailsStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
+			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(magenta).
-			Padding(0, 2)
+			Padding(0, 1)
 
 	titleStyle = lipgloss.NewStyle().
 			Foreground(cyan).
@@ -116,7 +116,7 @@ func initialModel() model {
 
 	s := table.DefaultStyles()
 	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
+		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(cyan).
 		BorderBottom(true).
 		Bold(true).
@@ -193,6 +193,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					stat.Blacklisted = false
 				}
 				statsMutex.Unlock()
+				// Riscrivi il file rimuovendo l'entry
+				rewriteBlacklist()
 				m.updateTable()
 			}
 		case "enter":
@@ -216,9 +218,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.table.SetWidth(msg.Width - 25)
-		// Header (7) + Details (6) + Help (2) + Spacing = ~18
-		tableHeight := msg.Height - 18
+		m.table.SetWidth(msg.Width - 26) // 22 sidebar + 4 spacing
+		// Header (~7) + Details (~6) + Help (~2) + Margin = ~15
+		tableHeight := msg.Height - 15
 		if tableHeight < 5 {
 			tableHeight = 5
 		}
@@ -238,6 +240,25 @@ func appendBlacklist(haiku string) {
 	if err == nil {
 		f.WriteString(haiku + "\n")
 		f.Close()
+	}
+}
+
+// rewriteBlacklist riscrive blacklist.txt leggendo lo stato corrente in memoria.
+// Va chiamata dopo ogni rimozione dalla blacklist (tasto w).
+func rewriteBlacklist() {
+	statsMutex.RLock()
+	defer statsMutex.RUnlock()
+
+	f, err := os.OpenFile("blacklist.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	for _, stat := range globalStats {
+		if stat.Blacklisted {
+			f.WriteString(stat.Haiku + "\n")
+		}
 	}
 }
 
@@ -307,7 +328,14 @@ func (m *model) updateTable() {
 			status,
 		})
 	}
+	// Salva cursore e ripristinalo dopo il refresh per non far saltare la selezione
+	currentCursor := m.table.Cursor()
 	m.table.SetRows(rows)
+	if currentCursor < len(rows) {
+		m.table.SetCursor(currentCursor)
+	} else if len(rows) > 0 {
+		m.table.SetCursor(len(rows) - 1)
+	}
 }
 
 func (m model) View() string {
@@ -358,7 +386,7 @@ func (m model) View() string {
 	tableView := baseStyle.Width(m.width - 25).Render(m.table.View())
 
 	// 4. Body
-	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, tableView)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", tableView)
 
 	// 5. Details (Altezza: ~6 righe)
 	var detailsView string
@@ -380,9 +408,9 @@ func (m model) View() string {
 			flowStr,
 			infoStyle.Render("Payload: ") + payloadStr,
 		)
-		detailsView = detailsStyle.Width(m.width - 4).Height(5).Render(detailsContent)
+		detailsView = detailsStyle.Width(m.width - 4).Render(detailsContent)
 	} else {
-		detailsView = detailsStyle.Width(m.width - 4).Height(5).Render(infoStyle.Render("Press ENTER to snapshot payload"))
+		detailsView = detailsStyle.Width(m.width - 4).Render(infoStyle.Render("Press ENTER to snapshot payload"))
 	}
 
 	// 6. Help

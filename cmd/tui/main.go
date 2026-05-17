@@ -47,7 +47,7 @@ type PacketMsg struct {
 type TickMsg time.Time
 
 func doTick() tea.Cmd {
-	return tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(10*time.Second, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }
@@ -81,9 +81,9 @@ func extractPayload(packet gopacket.Packet) string {
 }
 
 var (
-	statsMutex   sync.RWMutex
-	globalStats  = make(map[string]*HaikuStats)
-	totalPkts    int
+	statsMutex  sync.RWMutex
+	globalStats = make(map[string]*HaikuStats)
+	totalPkts   int
 )
 
 func capturePackets(ctx context.Context, source gopacket.PacketDataSource, handle *gopacket.PacketSource, fgsToMatch, fgsToUnmatch []string) {
@@ -107,7 +107,7 @@ func capturePackets(ctx context.Context, source gopacket.PacketDataSource, handl
 			continue
 		}
 		networkFlow := networkLayer.NetworkFlow()
-		
+
 		transportLayer := packet.TransportLayer()
 		if transportLayer == nil {
 			continue
@@ -118,7 +118,7 @@ func capturePackets(ctx context.Context, source gopacket.PacketDataSource, handl
 			continue
 		}
 
-		// Ignora il traffico in cui la destinazione non è l'host, o l'host è il mittente (loopback)
+		// Ignora il traffico in cui la destinazione non è l'host, o l'host è il mittente
 		if *hostString != "" && (networkFlow.Dst().String() != *hostString || networkFlow.Src().String() == *hostString) {
 			continue
 		}

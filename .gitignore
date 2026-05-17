@@ -17,3 +17,5 @@ blacklist.txt
 .DS_Store
 
 UTILS/
+
+blacklist.txt

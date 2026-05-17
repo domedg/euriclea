@@ -40,14 +40,16 @@ sudo tcpdump -i lo -n -U -w - | ./bin/euriclea-tui -host 127.0.0.1 -
 # 3. DIFESA ATTIVA (NFQueue e Iptables)
 # ------------------------------------------
 
-# Sulla VM Bersaglio: Imposta iptables per catturare il traffico TCP e mandarlo alla coda 420
-iptables -A INPUT -p tcp -j NFQUEUE --queue-num 420
+# Sulla VM Bersaglio: Imposta iptables per catturare il traffico TCP e mandarlo alla coda 420.
+# L'opzione --queue-bypass garantisce che se nfqueue crasha, il traffico viene accettato (FAIL-OPEN),
+# evitando di perdere punti SLA in gara.
+iptables -A INPUT -p tcp -j NFQUEUE --queue-num 420 --queue-bypass
 
 # Sulla VM Bersaglio: Avvia il demone NFQueue per scartare i pacchetti blacklistati
 ./bin/nfqueue
 
 # Sulla VM Bersaglio: Per rimuovere la regola iptables a fine gara
-iptables -D INPUT -p tcp -j NFQUEUE --queue-num 420
+iptables -D INPUT -p tcp -j NFQUEUE --queue-num 420 --queue-bypass
 
 
 # ------------------------------------------
